@@ -1,6 +1,6 @@
 from math import isclose, floor, ceil
 import numpy as np
-from feature_calculate import acc2dis, fft_filter, fft_spectrum
+from model.feature_calculate import fft_filter, fft_spectrum
 
 
 def _is_harmonic(target: float, base: float, tol: float) -> bool:
@@ -131,3 +131,4 @@ def Speed_Estimate_algorithm(data, fs, num_fre=10, min_fre=0, tol=2):
         return 0
 
     return freq_candidates[best_mode] * 60
+
