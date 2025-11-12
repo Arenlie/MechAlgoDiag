@@ -1,0 +1,30 @@
+[2025-11-10 15:16:42,979] INFO | CSV 已写入 1 行 -> kafka_dump_rt\realtime_diag.csv
+[2025-11-10 15:16:42,991] INFO | CSV 已写入 1 行 -> kafka_dump_rt\realtime_diag.csv
+[2025-11-10 15:17:17,423] ERROR | 写入 CSV 失败：[Errno 13] Permission denied: 'kafka_dump_rt\\realtime_diag.csv'
+[2025-11-10 15:17:17,423] ERROR | 写入 CSV 失败：[Errno 13] Permission denied: 'kafka_dump_rt\\realtime_diag.csv'
+[2025-11-10 15:17:57,650] INFO | CSV 已写入 1 行 -> kafka_dump_rt\realtime_diag.csv
+[2025-11-10 15:17:57,659] INFO | CSV 已写入 1 行 -> kafka_dump_rt\realtime_diag.csv
+[2025-11-10 16:17:04,741] INFO | 加载规则表：./white_list.xlsx
+[2025-11-10 16:17:04,741] ERROR | 主循环异常：[Errno 2] No such file or directory: './white_list.xlsx'
+[2025-11-10 16:18:24,518] INFO | 加载规则表：./white_list.xlsx
+[2025-11-10 16:18:24,519] ERROR | 主循环异常：[Errno 2] No such file or directory: './white_list.xlsx'
+[2025-11-10 16:18:39,820] INFO | 加载规则表：excel/white_list.xlsx
+[2025-11-10 16:18:39,997] INFO | 规则表索引完成：8 条三键组合。
+[2025-11-10 16:18:39,997] INFO | CSV 输出路径：kafka_dump_rt\realtime_diag.csv
+[2025-11-10 16:18:39,997] INFO | 报警状态表就绪：0 个监测项，默认=未报警
+[2025-11-10 16:18:42,009] ERROR | 主循环异常：NoBrokersAvailable
+[2025-11-10 16:24:08,387] INFO | 加载规则表：excel/white_list.xlsx
+[2025-11-10 16:24:08,548] INFO | 规则表索引完成：8 条三键组合。
+[2025-11-10 16:24:08,549] INFO | CSV 输出路径：kafka_dump_rt\realtime_diag.csv
+[2025-11-10 16:24:08,549] INFO | 报警状态表就绪：0 个监测项，默认=未报警
+[2025-11-10 16:24:10,604] ERROR | 主循环异常：NoBrokersAvailable
+[2025-11-10 16:26:31,849] INFO | 加载规则表：excel/white_list.xlsx
+[2025-11-10 16:26:32,011] INFO | 规则表索引完成：8 条三键组合。
+[2025-11-10 16:26:32,012] INFO | CSV 输出路径：kafka_dump_rt\realtime_diag.csv
+[2025-11-10 16:26:32,013] INFO | 报警状态表就绪：0 个监测项，默认=未报警
+[2025-11-10 16:26:34,024] ERROR | 主循环异常：NoBrokersAvailable
+[2025-11-10 16:44:21,219] INFO | 加载规则表：excel/white_list.xlsx
+[2025-11-10 16:44:21,418] INFO | 规则表索引完成：8 条三键组合。
+[2025-11-10 16:44:21,418] INFO | CSV 输出路径：kafka_realtime_diag\realtime_diag.csv
+[2025-11-10 16:44:21,419] INFO | 报警状态表就绪：0 个监测项，默认=未报警
+[2025-11-10 16:44:23,432] ERROR | 主循环异常：NoBrokersAvailable
