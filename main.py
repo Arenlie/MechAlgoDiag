@@ -504,5 +504,5 @@ def main():
 
 
 if __name__ == "__main__":
-    ensure_dir(OUTPUT_DIR)
     main()
+
