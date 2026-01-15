@@ -400,7 +400,7 @@ def main():
                 # logger.info(f"收到kafka数据，正在匹配规则表：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                 hit = rule.match(equip_no, point_no, kpild)
                 if not hit:
-                    # logger.info(f"该数据未在监测范围内：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
+                    logger.info(f"该数据未在监测范围内：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                     continue
                 logger.info(f"收到监测范围内kafka数据，开始解码数据：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                 # === 解码 byteValues ===
@@ -506,3 +506,4 @@ def main():
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
+
