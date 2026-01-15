@@ -21,8 +21,8 @@ from model import Speed_Estimate_algorithm
 from model_diagnosis import model_diagnosis
 
 # ========= 写死配置 =========
-KAFKA_BOOTSTRAP = "192.168.1.252:9092"
-KAFKA_TOPIC = "rwadata"
+KAFKA_BOOTSTRAP = "10.10.47.226:9092"
+KAFKA_TOPIC = "wave_data"
 FROM_BEGINNING = False
 
 # 规则表（xlsx/xls/csv），表头为中文默认格式，不允许修改
@@ -373,10 +373,10 @@ def main():
                 poll_timeout_ms=500,
                 logger=logger,
         ) as stream:
-
+            logger.info("开始持续监测Kafka数据。。。。。。。。。。")
             for record in stream.iter_records():
                 preview = payload_preview(record.get("value"), max_len=PRINT_PREVIEW_MAX)
-                logger.info(f"p{record['partition']}@{record['offset']} {record.get('ts_readable')} value={preview}")
+                # logger.info(f"p{record['partition']}@{record['offset']} {record.get('ts_readable')} value={preview}")
 
                 val = record.get("value") or {}
                 if val.get("format") != "json":
@@ -390,19 +390,19 @@ def main():
                 # === 业务字段 ===
                 equip_no = data.get("equipNo", "")
                 point_no = data.get("pointNo", "")
-                kpild = data.get("kpild", "")
+                kpild = data.get("kpiId", "")
                 byte_values = data.get("byteValues", None)
                 data_time = data.get("dataTime", None)  # ms
                 sample_rate = data.get("sampleRate", None)  # Hz
                 data_len = data.get("dataLen", None)
 
                 # === 三键 AND 匹配 ===
-                logger.info(f"收到kafka数据，正在匹配规则表：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
+                # logger.info(f"收到kafka数据，正在匹配规则表：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                 hit = rule.match(equip_no, point_no, kpild)
                 if not hit:
-                    logger.info(f"该数据未在监测范围内：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
+                    # logger.info(f"该数据未在监测范围内：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                     continue
-                logger.info(f"匹配数据成功，开始解码数据：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
+                logger.info(f"收到监测范围内kafka数据，开始解码数据：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                 # === 解码 byteValues ===
                 if byte_values is None or not byte_values:
                     logger.warning("byteValues 为空，无数据，跳过。")
@@ -430,7 +430,7 @@ def main():
                         sample_rate=sr,
                         data_time_ms=int(data_time) if data_time is not None else None,
                     )
-                    # 机理参数也放到顶层，便于 diagnosis_result 使用
+                    # 获取参数
                     if hit.get("work_speed") is not None:
                         decoded["work_speed"] = hit.get("work_speed")
                     else:
@@ -504,5 +504,5 @@ def main():
 
 
 if __name__ == "__main__":
+    ensure_dir(OUTPUT_DIR)
     main()
-
