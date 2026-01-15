@@ -450,11 +450,11 @@ def main():
                 # === 机理模型诊断 ===
                 try:
                     logger.info(
-                        f"开始进行机理模型诊断，数据长度={len(decoded['values'])}，采样率={sr}，工作速度={decoded['work_speed']}")
+                        # f"开始进行机理模型诊断，数据长度={len(decoded['values'])}，采样率={sr}，工作速度={decoded['work_speed']}")
                     diag = model_diagnosis(decoded["values"], fs=sr, fr=decoded["work_speed"],
                                            notice_th=decoded["notice_threshold"], warn_th=decoded["warn_threshold"])
                     if diag is None or not diag:
-                        logger.info("设备编码={equip_no}，测点={point_no}，数据项={kpild} 诊断结果显示无故障，跳过。")
+                        logger.info(f"设备编码={equip_no}，测点={point_no}，数据项={kpild}，工作速度={decoded['work_speed'] 诊断结果显示无故障，跳过。")
                         continue
                 except Exception as e:
                     logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 模型诊断失败")
@@ -497,7 +497,7 @@ def main():
                         # === 追加写入 CSV ===
                         try:
                             append_row_to_csv(row, CSV_PATH, logger)
-                            logger.info(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 故障已写入 {CSV_PATH}")
+                            logger.info(f"设备编码={equip_no}，测点={point_no}，数据项={kpild}，工作速度={decoded['work_speed'] 故障已写入 {CSV_PATH}")
                         except Exception as e:
                             logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 故障写入失败")
 
@@ -510,4 +510,5 @@ def main():
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
+
 
