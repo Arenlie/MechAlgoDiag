@@ -426,7 +426,7 @@ def main():
                     except Exception:
                         sr = None
                 if sr is None:
-                    logger.error("设备编码={equip_no}，测点={point_no}，数据项={kpild} 缺少 sampleRate（Kafka 与规则表均未提供），无法解码。")
+                    logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 缺少 sampleRate（Kafka 与规则表均未提供），无法解码。")
                     continue
 
                 try:
@@ -510,5 +510,6 @@ def main():
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
+
 
 
