@@ -32,7 +32,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install pyinstaller
-          pyinstaller -F --noconsole --icon "images\\logo.ico" main.py
+          pyinstaller -F --console --icon "images\\logo.ico" main.py
 
       # 可选：列一下产物目录，避免路径写错
       - name: List dist folder
