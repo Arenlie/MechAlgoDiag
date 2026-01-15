@@ -76,6 +76,7 @@ class RuleTable:
     COL_EQUIP_NO = "设备编码"
     COL_EQUIP_NAME = "设备名称"
     COL_POINT_NAME = "测点（点位）名称"
+    COL_POINT_NO = "测点（点位）编码"
     COL_KPID = "波形数据编码"
 
     COL_WORK_SPEED = "工作转速"
@@ -110,9 +111,9 @@ class RuleTable:
         cnt = 0
         for _, row in df.iterrows():
             equip_no = _norm_key(row.get(self.COL_EQUIP_NO))
-            point_name = _norm_key(row.get(self.COL_POINT_NAME))
+            point_no = _norm_key(row.get(self.COL_POINT_NO))
             kpild = _norm_key(row.get(self.COL_KPID))
-            if not equip_no or not point_name or not kpild:
+            if not equip_no or not point_no or not kpild:
                 continue
 
             info = {
@@ -120,13 +121,14 @@ class RuleTable:
                 "equip_no": str(row.get(self.COL_EQUIP_NO, "")),
                 "equip_name": str(row.get(self.COL_EQUIP_NAME, "")),
                 "point_name": str(row.get(self.COL_POINT_NAME, "")),
+                "point_no": str(row.get(self.COL_POINT_NO, "")),
                 "kpild": str(row.get(self.COL_KPID, "")),
                 "work_speed": _to_float(row.get(self.COL_WORK_SPEED)),
                 "notice_threshold": _to_float(row.get(self.COL_NOTICE_TH)),
                 "warn_threshold": _to_float(row.get(self.COL_WARN_TH)),
                 "sample_rate_rule": _to_float(row.get(self.COL_SAMPLE_RATE)),
             }
-            self.index[(equip_no, point_name, kpild)] = info
+            self.index[(equip_no, point_no, kpild)] = info
             cnt += 1
 
         self.logger.info(f"规则表索引完成：{cnt} 条三键组合。")
@@ -353,6 +355,8 @@ def main():
         ensure_dir(OUTPUT_DIR)
         # 规则表
         rule = RuleTable(RULE_TABLE_PATH, logger)
+        logger.info(f"规则表索引键示例：{list(rule.index.keys())[:2]}")
+
 
         logger.info(f"CSV 输出路径：{CSV_PATH}")
 
@@ -375,7 +379,7 @@ def main():
         ) as stream:
             logger.info("开始持续监测Kafka数据。。。。。。。。。。")
             for record in stream.iter_records():
-                preview = payload_preview(record.get("value"), max_len=PRINT_PREVIEW_MAX)
+                # preview = payload_preview(record.get("value"), max_len=PRINT_PREVIEW_MAX)
                 # logger.info(f"p{record['partition']}@{record['offset']} {record.get('ts_readable')} value={preview}")
 
                 val = record.get("value") or {}
@@ -398,9 +402,10 @@ def main():
 
                 # === 三键 AND 匹配 ===
                 # logger.info(f"收到kafka数据，正在匹配规则表：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
+
                 hit = rule.match(equip_no, point_no, kpild)
                 if not hit:
-                    logger.info(f"该数据未在监测范围内：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
+                    # logger.info(f"该数据未在监测范围内：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                     continue
                 logger.info(f"收到监测范围内kafka数据，开始解码数据：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                 # === 解码 byteValues ===
@@ -506,4 +511,3 @@ def main():
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
-
