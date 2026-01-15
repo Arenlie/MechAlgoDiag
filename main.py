@@ -407,10 +407,10 @@ def main():
                 if not hit:
                     # logger.info(f"该数据未在监测范围内：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                     continue
-                logger.info(f"收到监测范围内kafka数据，开始解码数据：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
+                # logger.info(f"收到监测范围内kafka数据，开始解码数据：设备编码={equip_no}，测点={point_no}，数据项={kpild}")
                 # === 解码 byteValues ===
                 if byte_values is None or not byte_values:
-                    logger.warning("byteValues 为空，无数据，跳过。")
+                    logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 的 byteValues 为空，无数据，跳过。")
                     continue
 
                 # 采样率优先用 Kafka，否则回落规则表
@@ -426,7 +426,7 @@ def main():
                     except Exception:
                         sr = None
                 if sr is None:
-                    logger.error("缺少 sampleRate（Kafka 与规则表均未提供），无法解码。")
+                    logger.error("设备编码={equip_no}，测点={point_no}，数据项={kpild} 缺少 sampleRate（Kafka 与规则表均未提供），无法解码。")
                     continue
 
                 try:
@@ -442,9 +442,9 @@ def main():
                         decoded["work_speed"] = Speed_Estimate_algorithm(decoded["values"], sr)
                     decoded["notice_threshold"] = hit.get("notice_threshold")
                     decoded["warn_threshold"] = hit.get("warn_threshold")
-                    logger.info(f"数据解码成功，采样率={sr}，数据长度={data_len}")
+                    # logger.info(f"数据解码成功，采样率={sr}，数据长度={data_len}")
                 except Exception as e:
-                    logger.error(f"byteValues 解`码失败：{e}")
+                    logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 的 byteValues 解码失败")
                     continue
 
                 # === 机理模型诊断 ===
@@ -454,10 +454,10 @@ def main():
                     diag = model_diagnosis(decoded["values"], fs=sr, fr=decoded["work_speed"],
                                            notice_th=decoded["notice_threshold"], warn_th=decoded["warn_threshold"])
                     if diag is None or not diag:
-                        logger.info("诊断结果显示无故障，跳过。")
+                        logger.info("设备编码={equip_no}，测点={point_no}，数据项={kpild} 诊断结果显示无故障，跳过。")
                         continue
                 except Exception as e:
-                    logger.error(f"模型诊断失败：{e}")
+                    logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 模型诊断失败")
                     continue
 
                 # === 先更新状态，再决定是否写 CSV ===
@@ -472,8 +472,7 @@ def main():
 
                 if not is_alarm:
                     # 无报警：状态机已自动清空 first/latest；无需写 CSV
-                    logger.info(
-                        f"监测到未报警：设备={key_triplet[0]} 测点={key_triplet[1]} 数据项={key_triplet[2]}；状态已重置为未报警")
+                    # logger.info(f"监测到未报警：设备={key_triplet[0]} 测点={key_triplet[1]} 数据项={key_triplet[2]}；状态已重置为未报警")
                     continue
 
                 # 有报警：需要写 CSV，时间来自状态机（首次/最新） ===
@@ -498,9 +497,9 @@ def main():
                         # === 追加写入 CSV ===
                         try:
                             append_row_to_csv(row, CSV_PATH, logger)
-                            logger.info(f"CSV 已写入 1 行 -> {CSV_PATH}")
+                            logger.info(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 故障已写入 {CSV_PATH}")
                         except Exception as e:
-                            logger.error(f"写入 CSV 失败：{e}")
+                            logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 故障写入失败")
 
     except Exception as e:
         import traceback
@@ -511,3 +510,4 @@ def main():
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
+
