@@ -449,8 +449,7 @@ def main():
 
                 # === 机理模型诊断 ===
                 try:
-                    logger.info(
-                        # f"开始进行机理模型诊断，数据长度={len(decoded['values'])}，采样率={sr}，工作速度={decoded['work_speed']:.2f}")
+                    # logger.info(f"开始进行机理模型诊断，数据长度={len(decoded['values'])}，采样率={sr}，工作速度={decoded['work_speed']:.2f}")
                     diag = model_diagnosis(decoded["values"], fs=sr, fr=decoded["work_speed"],
                                            notice_th=decoded["notice_threshold"], warn_th=decoded["warn_threshold"])
                     if diag is None or not diag:
@@ -510,6 +509,7 @@ def main():
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
+
 
 
 
