@@ -511,7 +511,7 @@ def main():
                             f"设备编码={equip_no}，测点={point_no}，数据项={kpild}，工作速度={decoded['work_speed']:.2f} 诊断结果显示无故障，跳过。")
                         continue
                 except Exception as e:
-                    logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 模型诊断失败: {e}")
+                    logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 模型诊断失败: \n{e}")
                     continue
 
                 # === 先更新状态，再决定是否写 CSV ===
@@ -559,11 +559,9 @@ def main():
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        logger.error(f"主循环异常：{e}")
+        logger.error(f"主循环异常：\n{e}")
 
 
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
-
-
