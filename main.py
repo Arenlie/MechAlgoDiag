@@ -9,9 +9,7 @@
 import os
 import csv
 import json
-import time
 import logging
-import sqlite3
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Iterable, List
@@ -33,7 +31,6 @@ RULE_TABLE_PATH = r"excel/white_list.xlsx"
 # 输出与日志
 OUTPUT_DIR = "kafka_realtime_diag"
 CSV_PATH = os.path.join(OUTPUT_DIR, "realtime_diag.csv")
-SQL_PATH = os.path.join(OUTPUT_DIR, "realtime_diag.db")
 LOG_DIR = "logs"
 LOG_FILE = os.path.join(LOG_DIR, "realtime_diag.log")
 PRINT_PREVIEW_MAX = 200
@@ -406,101 +403,10 @@ def append_row_to_csv(row: Dict[str, Any], csv_path: str, logger: logging.Logger
         return False
 
 
-def append_row_to_sql(row, sql_path, logger, table_name, busy_timeout_ms: int = 5000, max_retries: int = 6,):
-    """
-    追加写入 SQLite：
-    - DB 不存在：自动创建
-    - 表不存在：自动建表（id 自增 + row 字段，字段类型统一 TEXT）
-    - row 出现新列：自动 ALTER TABLE ADD COLUMN
-    - 写入遇到 database is locked：WAL + busy_timeout + 重试（指数退避）
-
-    参数:
-      row: Dict[str, Any]，例如 {"设备编码": "...", "报警描述": "...", ...}
-      sql_path: *.db 文件路径
-      logger: logging.Logger
-      table_name: 表名，默认 alarm_records
-    """
-
-    # --------- 内部工具函数 ---------
-    def qident(name: str) -> str:
-        # SQLite 标识符引用：支持中文/空格/特殊字符
-        return '"' + str(name).replace('"', '""') + '"'
-
-    def table_exists(conn: sqlite3.Connection, tname: str) -> bool:
-        cur = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
-            (tname,),
-        )
-        return cur.fetchone() is not None
-
-    def get_existing_columns(conn: sqlite3.Connection, tname: str) -> set:
-        cur = conn.execute(f"PRAGMA table_info({qident(tname)})")
-        return {r[1] for r in cur.fetchall()}  # r[1] = column name
-
-    def create_table(conn: sqlite3.Connection, tname: str, cols):
-        col_defs = ", ".join([f"{qident(c)} TEXT" for c in cols])
-        sql = f"""CREATE TABLE IF NOT EXISTS {qident(tname)} (id INTEGER PRIMARY KEY AUTOINCREMENT{", " + col_defs if col_defs else ""})"""
-        conn.execute(sql)
-
-    def add_missing_columns(conn: sqlite3.Connection, tname: str, missing_cols):
-        for c in missing_cols:
-            conn.execute(f"ALTER TABLE {qident(tname)} ADD COLUMN {qident(c)} TEXT")
-
-    # --------- 主逻辑 ---------
-    ensure_dir(os.path.dirname(sql_path))
-
-    # connect 的 timeout 是秒；这里用 busy_timeout_ms 再配合 PRAGMA 更稳
-    conn = sqlite3.connect(sql_path, timeout=max(1, busy_timeout_ms // 1000))
-    try:
-        # 更适合“写入不中断 + 并发查看”的模式
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)};")
-        conn.execute("PRAGMA synchronous=NORMAL;")
-
-        # 1) 建表 or 加列
-        if not table_exists(conn, table_name):
-            create_table(conn, table_name, cols=row.keys())
-        else:
-            existing = get_existing_columns(conn, table_name)  # 含 id
-            missing = [k for k in row.keys() if k not in existing]
-            if missing:
-                add_missing_columns(conn, table_name, missing)
-
-        # 2) 组装 INSERT
-        cols = list(row.keys())
-        col_sql = ", ".join(qident(c) for c in cols)
-        placeholders = ", ".join(["?"] * len(cols))
-        values = [(""if row.get(c) is None else str(row.get(c))) for c in cols]
-
-        insert_sql = f"INSERT INTO {qident(table_name)} ({col_sql}) VALUES ({placeholders})"
-
-        # 3) 锁冲突重试（指数退避）
-        for attempt in range(max_retries + 1):
-            try:
-                conn.execute("BEGIN IMMEDIATE;")  # 尽早拿写锁
-                conn.execute(insert_sql, values)
-                conn.commit()
-                return
-            except sqlite3.OperationalError as e:
-                conn.rollback()
-                msg = str(e).lower()
-                if "database is locked" in msg or "database table is locked" in msg:
-                    if attempt >= max_retries:
-                        logger.exception(f"SQLite 写入失败（锁超时），已重试 {max_retries} 次：{e}")
-                        raise
-                    time.sleep(0.1 * (2 ** attempt))
-                    continue
-                logger.exception(f"SQLite 写入失败：{e}")
-                raise
-    finally:
-        conn.close()
-
-
 # ========= 主流程 =========
 def main():
     try:
         ensure_dir(OUTPUT_DIR)
-        ensure_dir(os.path.dirname(SQL_PATH))
         # 规则表
         rule = RuleTable(RULE_TABLE_PATH, logger)
         logger.info(f"规则表索引键示例：{list(rule.index.keys())[:2]}")
@@ -605,7 +511,7 @@ def main():
                             f"设备编码={equip_no}，测点={point_no}，数据项={kpild}，工作速度={decoded['work_speed']:.2f} 诊断结果显示无故障，跳过。")
                         continue
                 except Exception as e:
-                    logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 模型诊断失败")
+                    logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 模型诊断失败: {e}")
                     continue
 
                 # === 先更新状态，再决定是否写 CSV ===
@@ -644,8 +550,7 @@ def main():
 
                         # === 追加写入 CSV ===
                         try:
-                            # append_row_to_csv(row, CSV_PATH, logger)
-                            append_row_to_sql(row, SQL_PATH, logger)
+                            append_row_to_csv(row, CSV_PATH, logger)
                             logger.info(
                                 f"设备编码={equip_no}，测点={point_no}，数据项={kpild}，工作速度={decoded['work_speed']:.2f} 故障已写入 {CSV_PATH}")
                         except Exception as e:
