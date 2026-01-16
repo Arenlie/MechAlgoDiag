@@ -464,7 +464,6 @@ def main():
         rule = RuleTable(RULE_TABLE_PATH, logger)
         logger.info(f"规则表索引键示例：{list(rule.index.keys())[:2]}")
 
-
         logger.info(f"CSV 输出路径：{CSV_PATH}")
 
         # === NEW: 初始化报警状态表（预置全部为“未报警”），并启用持久化 ===
@@ -616,3 +615,4 @@ def main():
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
+
