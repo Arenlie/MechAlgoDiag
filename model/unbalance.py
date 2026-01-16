@@ -8,7 +8,7 @@ def detect_unbalance_fault(s_signal, acc_signal, fs, fr, notice_th=None, warn_th
     if s_signal.ndim != 1:
         raise ValueError("s_signal 必须为一维数组。")
     if fr <= 0 or fs <= 0:
-        raise ValueError("fr 与 fs 必须为正。")
+        raise ValueError(f"fs={fs}, fr={fr} fr 与 fs 必须为正。")
 
     # 1) 频谱与倍频峰值
     f, fft_data = fft_spectrum(s_signal, fs)
@@ -41,4 +41,5 @@ def detect_unbalance_fault(s_signal, acc_signal, fs, fr, notice_th=None, warn_th
         "alarm_message": alarm_message,
     }
     return result
+
 
