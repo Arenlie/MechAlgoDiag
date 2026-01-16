@@ -554,7 +554,7 @@ def main():
                             logger.info(
                                 f"设备编码={equip_no}，测点={point_no}，数据项={kpild}，工作速度={decoded['work_speed']:.2f} 故障已写入 {CSV_PATH}")
                         except Exception as e:
-                            logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 故障写入失败")
+                            logger.error(f"设备编码={equip_no}，测点={point_no}，数据项={kpild} 故障写入失败:/n{e}")
 
     except Exception as e:
         import traceback
@@ -565,3 +565,4 @@ def main():
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
+
