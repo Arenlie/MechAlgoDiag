@@ -27,8 +27,8 @@ def model_diagnosis(acc: np.ndarray, fs: float, fr: float, notice_th: float, war
     res_misalignment = detect_misalignment_fault(s, acc, fs=fs, fr=fr, notice_th=notice_th, warn_th=warn_th)
     res_unbalance = detect_unbalance_fault(s, acc, fs=fs, fr=fr, notice_th=notice_th, warn_th=warn_th)
     res_coupling = detect_coupling_fault(s, acc, fs=fs, fr=fr, notice_th=notice_th, warn_th=warn_th)
-    res_bearing_kur = detect_bearing_fault(acc, fs=fs, notice_th=notice_th, warn_th=warn_th)
-    res_bearing_lr = detect_bearing_fault(acc, fs=fs, notice_th=notice_th, warn_th=warn_th)
+    res_bearing_kur = detect_bearing_fault(acc, fs=fs, notice_th=3.5, warn_th=4.5)
+    res_bearing_lr = detect_bearing_fault(acc, fs=fs, notice_th=8, warn_th=16)
 
     if res_misalignment["alarm_level"] is not None:
         result.append(res_misalignment)
@@ -44,3 +44,4 @@ def model_diagnosis(acc: np.ndarray, fs: float, fr: float, notice_th: float, war
         result.append(res_bearing_lr)
 
     return result
+
