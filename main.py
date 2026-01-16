@@ -12,7 +12,7 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple, Iterable
+from typing import Any, Dict, Optional, Tuple, Iterable, List
 from pathlib import Path
 import pandas as pd
 from kafka_stream import KafkaSimpleConsumer, payload_preview
@@ -140,7 +140,8 @@ class RuleTable:
 
 # === 新增：报警状态管理器 =========================================
 class AlarmStateManager:
-    """按 (equip_no, point_no, kpild) 维护报警状态：
+    """
+    按 (equip_no, point_no, kpild) 维护报警状态：
        - 未报警：first/latest 均为空
        - 报警中：记录首次(first)与最新(latest)报警时间
     """
@@ -299,54 +300,160 @@ def compute_conclusion(diag: Dict[str, Any]) -> str:
     return "未定义"
 
 
-def append_row_to_csv(row: Dict[str, Any], csv_path: str, logger: logging.Logger):
+def append_row_to_csv(row: Dict[str, Any], csv_path: str, logger: logging.Logger, buffer_path: Optional[str] = None):
     """
-    兼容“列动态增长”的 CSV 追加：
-    - 若文件不存在：创建并写入表头
-    - 若存在且新列为旧列子集：直接追加
-    - 若存在但出现新列：读全量CSV + 合并列 + 回写
-    """
-    ensure_dir(os.path.dirname(csv_path))
-    if not os.path.exists(csv_path):
-        # 初次创建
-        with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=list(row.keys()))
-            writer.writeheader()
-            writer.writerow(row)
-        return
+    CSV 被 Excel/WPS 打开占用时仍可“继续写入”
+    - 主文件可写：优先写入主 CSV（列动态增长兼容）
+    - 主文件被占用（PermissionError）：写入 buffer（jsonl）
+    - 每次调用都会尝试 flush buffer（把 buffer 合并回主 CSV）
 
-    # 文件存在：检查列
-    with open(csv_path, "r", encoding="utf-8-sig") as f:
-        reader = csv.reader(f)
+    返回：
+      True  -> 本次数据已写入主 CSV（可能同时 flush 了 buffer）
+      False -> 本次数据写入 buffer（主 CSV 当前被占用或写回失败）
+    """
+    if buffer_path is None:
+        buffer_path = csv_path + ".buffer.jsonl"
+
+    # ---- 内部工具：确保目录存在 ----
+    def _ensure_dir(path: str):
+        if path and not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+
+    # ---- 内部工具：追加到 buffer ----
+    def _append_to_buffer(r: Dict[str, Any]) -> None:
+        _ensure_dir(os.path.dirname(buffer_path) or ".")
+        with open(buffer_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        logger.warning(f"CSV被占用/写入失败，已写入缓冲队列: {buffer_path}")
+
+    # ---- 内部工具：读取 buffer 全部行 ----
+    def _read_buffer_rows() -> List[Dict[str, Any]]:
+        if not os.path.exists(buffer_path):
+            return []
+        rows_: List[Dict[str, Any]] = []
+        with open(buffer_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows_.append(json.loads(line))
+                except Exception:
+                    # 忽略坏行，避免阻塞主流程
+                    continue
+        return rows_
+
+    # ---- 内部工具：清空 buffer ----
+    def _clear_buffer() -> None:
         try:
-            header = next(reader)
-        except StopIteration:
-            header = []
+            if os.path.exists(buffer_path):
+                os.remove(buffer_path)
+        except Exception:
+            pass
+
+    # ---- 内部工具：用 pandas “全量合并列 + 回写”（含原子替换） ----
+    def _rewrite_csv_with_rows(rows_to_add: List[Dict[str, Any]]) -> None:
+        # 读旧表（可能不存在）
+        if os.path.exists(csv_path):
+            df_old = pd.read_csv(csv_path, dtype=str, encoding="utf-8-sig")
+        else:
+            df_old = pd.DataFrame()
+
+        df_new = pd.DataFrame(rows_to_add)
+
+        # 列并集：旧列 + 新列（保持旧列顺序）
+        cols_union = list(dict.fromkeys(list(df_old.columns) + list(df_new.columns)))
+        df_old = df_old.reindex(columns=cols_union)
+        df_new = df_new.reindex(columns=cols_union)
+
+        df_all = pd.concat([df_old, df_new], ignore_index=True)
+
+        tmp = csv_path + ".tmp"
+        df_all.to_csv(tmp, index=False, encoding="utf-8-sig")
+        os.replace(tmp, csv_path)  # 原子替换（同盘）
+
+    # =========================
+    # 主流程
+    # =========================
+    _ensure_dir(os.path.dirname(csv_path) or ".")
+
+    # 1) 先尝试 flush buffer（如果存在的话），并把本次 row 一并纳入（更稳：一次性合并写回）
+    buffered = _read_buffer_rows()
+    if buffered:
+        rows_to_add = buffered + [row]
+        try:
+            _rewrite_csv_with_rows(rows_to_add)
+            _clear_buffer()
+            logger.info(f"已flush缓冲队列并写入主CSV：合并 {len(buffered)} 行 + 本次 1 行")
+            return True
+        except PermissionError:
+            # 主文件仍被占用：不能丢数据，只把本次 row 追加进 buffer（保留原 buffer）
+            _append_to_buffer(row)
+            return False
+        except Exception as e:
+            logger.exception(f"flush合并写回失败（已保留buffer），原因: {e}")
+            _append_to_buffer(row)
+            return False
+
+    # 2) 无 buffer：走快路径（能追加就追加；遇到新列/回写才走 pandas）
+    if not os.path.exists(csv_path):
+        try:
+            with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+                writer.writeheader()
+                writer.writerow(row)
+            return True
+        except PermissionError:
+            _append_to_buffer(row)
+            return False
+        except Exception as e:
+            logger.exception(f"创建CSV失败：{e}")
+            _append_to_buffer(row)
+            return False
+
+    # 3) 文件存在：读取表头判断是否可直接追加
+    try:
+        with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.reader(f)
+            header = next(reader, [])
+    except PermissionError:
+        _append_to_buffer(row)
+        return False
+    except Exception as e:
+        logger.exception(f"读取CSV表头失败：{e}")
+        _append_to_buffer(row)
+        return False
 
     old_cols = list(header)
     new_cols = list(row.keys())
 
-    if set(new_cols).issubset(set(old_cols)):
-        # 直接追加
-        with open(csv_path, "a", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=old_cols, extrasaction="ignore")
-            # 填充缺失列为空
-            safe_row = {k: row.get(k, "") for k in old_cols}
-            writer.writerow(safe_row)
-    else:
-        # 出现新列：用 pandas 合并写回
+    # 3.1 新列是旧列子集：直接追加（最快）
+    if old_cols and set(new_cols).issubset(set(old_cols)):
         try:
-            df_old = pd.read_csv(csv_path, dtype=str, encoding="utf-8-sig")
-        except Exception:
-            df_old = pd.DataFrame(columns=old_cols)
+            with open(csv_path, "a", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=old_cols, extrasaction="ignore")
+                safe_row = {k: row.get(k, "") for k in old_cols}
+                writer.writerow(safe_row)
+            return True
+        except PermissionError:
+            _append_to_buffer(row)
+            return False
+        except Exception as e:
+            logger.exception(f"追加写入失败：{e}")
+            _append_to_buffer(row)
+            return False
 
-        df_new = pd.DataFrame([{k: row.get(k, "") for k in new_cols}])
-        # 新列并集
-        cols_union = list(dict.fromkeys(old_cols + [c for c in new_cols if c not in old_cols]))
-        df_old = df_old.reindex(columns=cols_union)
-        df_new = df_new.reindex(columns=cols_union)
-        df_all = pd.concat([df_old, df_new], ignore_index=True)
-        df_all.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    # 3.2 旧表头为空（空文件）或出现新列：用 pandas 合并回写（慢路径）
+    try:
+        _rewrite_csv_with_rows([row])
+        return True
+    except PermissionError:
+        _append_to_buffer(row)
+        return False
+    except Exception as e:
+        logger.exception(f"合并列回写失败：{e}")
+        _append_to_buffer(row)
+        return False
 
 
 # ========= 主流程 =========
@@ -509,8 +616,3 @@ def main():
 if __name__ == "__main__":
     ensure_dir(OUTPUT_DIR)
     main()
-
-
-
-
-
